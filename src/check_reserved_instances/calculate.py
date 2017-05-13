@@ -45,6 +45,19 @@ def calculate_ec2_ris(account):
     ec2_conn = boto3.client(
         'ec2', aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key, region_name=region)
+
+    account_attrs = ec2_conn.describe_account_attributes(
+        AttributeNames=['supported-platforms']
+    )
+
+    is_vpc_only = True
+
+    for account_attr in account_attrs['AccountAttributes']:
+        if account_attr['AttributeName'] == 'supported-platforms':
+            for attributeValue in account_attr['AttributeValues']:
+                if attributeValue == 'EC2':
+                    is_vpc_only = False
+
     paginator = ec2_conn.get_paginator('describe_instances')
     page_iterator = paginator.paginate(
         Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
@@ -108,7 +121,7 @@ def calculate_ec2_ris(account):
 
         instance_type = reserved_instance['InstanceType']
         # check if VPC/Classic reserved instance
-        if 'VPC' in reserved_instance.get('ProductDescription'):
+        if 'VPC' in reserved_instance.get('ProductDescription') or is_vpc_only:
             ec2_vpc_reserved_instances[(
                 instance_type, az)] = ec2_vpc_reserved_instances.get(
                 (instance_type, az), 0) + reserved_instance['InstanceCount']
